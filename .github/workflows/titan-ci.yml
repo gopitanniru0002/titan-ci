@@ -3,7 +3,7 @@ name: Build and Push Docker Image to ECR
 on:
   push:
     branches:
-      - master  # or 'main'
+      - master  # change to 'main' if your default branch is main
 
 jobs:
   build-and-push:
@@ -18,7 +18,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}  # ap-south-2
+          aws-region: ${{ secrets.AWS_REGION }}  # e.g., ap-south-2
 
       - name: Login to AWS ECR
         id: login-ecr
@@ -30,10 +30,18 @@ jobs:
           echo "ECR_REPOSITORY=${{ secrets.AWS_ECR_REPOSITORY }}" >> $GITHUB_ENV
           echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
+      - name: Validate env vars
+        run: |
+          test -n "$ECR_REGISTRY" || { echo "ECR_REGISTRY empty"; exit 1; }
+          test -n "$ECR_REPOSITORY" || { echo "ECR_REPOSITORY empty"; exit 1; }
+          test -n "$IMAGE_TAG" || { echo "IMAGE_TAG empty"; exit 1; }
+          echo "Using: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
       - name: Build image
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker tag  $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                      $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
       - name: Push image (SHA + latest)
         run: |
