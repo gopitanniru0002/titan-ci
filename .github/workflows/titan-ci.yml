@@ -3,47 +3,42 @@ name: Build and Push Docker Image to ECR
 on:
   push:
     branches:
-      - master  # change to 'main' if your default branch is main
+      - master    # Will trigger on the default branch (usually main or master)
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout source code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Step 2: Configure AWS credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}  # e.g., ap-south-2
+          aws-region: ${{ secrets.AWS_REGION }}  # Make AWS region configurable in secrets
 
+      # Step 3: Login to Amazon ECR
       - name: Login to AWS ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Set Docker vars (use ECR login output)
+      # Step 4: Set Docker repository variables (make ECR repository and tag configurable)
+      - name: Set Docker environment variables
         run: |
-          echo "ECR_REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
-          echo "ECR_REPOSITORY=${{ secrets.AWS_ECR_REPOSITORY }}" >> $GITHUB_ENV
-          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "ECR_REGISTRY=${{ secrets.AWS_ECR_REGISTRY }}" >> $GITHUB_ENV  # ECR registry stored in secrets
+          echo "ECR_REPOSITORY=${{ secrets.AWS_ECR_REPOSITORY }}" >> $GITHUB_ENV  # Repository name from secrets
+          echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV  # Use commit SHA as image tag for versioning
 
-      - name: Validate env vars
-        run: |
-          test -n "$ECR_REGISTRY" || { echo "ECR_REGISTRY empty"; exit 1; }
-          test -n "$ECR_REPOSITORY" || { echo "ECR_REPOSITORY empty"; exit 1; }
-          test -n "$IMAGE_TAG" || { echo "IMAGE_TAG empty"; exit 1; }
-          echo "Using: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-      - name: Build image
+      # Step 5: Build Docker image
+      - name: Build Docker Image
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag  $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-                      $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-      - name: Push image (SHA + latest)
+      # Step 6: Push Docker image to ECR
+      - name: Push Docker Image to ECR
         run: |
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
